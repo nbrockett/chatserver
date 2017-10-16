@@ -13,8 +13,8 @@ while True:
     s.send(message.encode())
     print("waiting reply")
 
-    #reply = s.recv(1024)
+    reply = s.recv(1024)
 
-    #print("Received ", repr(reply))
+    print("Received ", repr(reply))
 
 s.close()
