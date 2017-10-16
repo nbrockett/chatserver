@@ -3,28 +3,22 @@
 import socket
 import select
 import sys
+import argparse
 
-HOST = "localhost"
-PORT = 8000
+
+#HOST = "localhost"
+#PORT = 8000
 RECV_BUFFER = 4096
+FLAGS = None
 
-# s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# s.bind((HOST, PORT))
-# s.listen(1)
-# print("Chat server started on port " + str(PORT))
-#
-#
-# conn, addr = s.accept()
-# print("connected: {0}, {1}".format(conn, addr))
-#
-# while True:
-#     data = conn.recv(1024)
-#     print("Received ", repr(data))
-#
-#     reply = input("Reply: ")
-#     conn.sendall(reply.encode())
-#
-# conn.close()
+class ChatRoom():
+
+    def __init__(self, room_name):
+
+        self.room_name = room_name
+
+
+
 
 class ChatServer():
 
@@ -52,7 +46,7 @@ class ChatServer():
         self.sockets.append(self.server_socket)
 
         print(self.server_socket)
-        print("Chat server started on port " + str(PORT))
+        print("Chat server started on port " + str(self.port))
 
 
     def run(self):
@@ -71,12 +65,12 @@ class ChatServer():
 
                 if socket == self.server_socket:
                     # new connection
-                    conn, addr = self.server_socket.accept()
-                    self.sockets.append(conn)
-                    print("new client connected: {0}, {1}".format(conn, addr))
+                    conn_socket, addr = self.server_socket.accept()
+                    self.sockets.append(conn_socket)
+                    print("new client from: {0}".format(addr))
 
-                    self.publish_to_all(conn, "[%s:%s] entered our chatting room\n" % addr)
-
+                    self.publish_to_all(conn_socket, "[%s:%s] entered our chatting room\n" % addr)
+                    print("[%s:%s] entered our chatting room\n" % addr)
 
                 else: # message from client
 
@@ -112,7 +106,24 @@ class ChatServer():
         pass
 
 
-if __name__ == '__main__':
 
-    chat_server = ChatServer(PORT, HOST)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='localhost',
+        help='host ip of server.'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='port of server.'
+    )
+
+    FLAGS, unparsed = parser.parse_known_args()
+
+    chat_server = ChatServer(FLAGS.port, FLAGS.host)
     chat_server.run()
