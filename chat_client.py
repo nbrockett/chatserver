@@ -29,23 +29,22 @@ try:
     print("\n")
 
     # join msg
-    join_msg = JOIN_MSG.format('chat1', '123.456.789.000', '123', 'client1')
+    join_msg = JOIN_MSG.format('chatroom1', '123.456.789.000', '123', 'client1')
     print('sending join msg')
     sock.send(join_msg.encode())
 
     print("waiting reply from join")
     reply = sock.recv(4096)
     print("Received ", repr(reply))
-    print("\n")
 
     # kill msg
-    kill_msg = KILL_MSG
-    print('sending kill msg')
-    sock.send(kill_msg.encode())
-
-    print("waiting reply kill")
-    reply = sock.recv(4096)
-    print("Received ", repr(reply))
+    # kill_msg = KILL_MSG
+    # print('sending kill msg')
+    # sock.send(kill_msg.encode())
+    #
+    # print("waiting reply kill")
+    # reply = sock.recv(4096)
+    # print("Received ", repr(reply))
 
 
 finally:

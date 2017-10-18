@@ -12,6 +12,14 @@ RECV_BUFFER = 4096
 MAX_CONNECTIONS = 10
 FLAGS = None
 
+
+class Connection:
+    def __init__(self, socket, address):
+        self.socket = socket
+        self.address = address
+        self.ip = address[0]
+        self.port = address[1]
+
 class ChatRoom:
 
     def __init__(self, room_name, room_ID):
@@ -21,21 +29,39 @@ class ChatRoom:
 
         # list of client names
         self.clients = {}
+        self.client_sockets = []
 
 
-    def add_client(self, join_ID, client_name):
+    def add_client(self, join_ID, client_name, sock):
 
         if join_ID not in self.clients:
-            self.clients[join_ID] = client_name
+            self.clients[join_ID] = (client_name, sock)
         else:
             print("client ID {0} already joined".format(join_ID))
 
     def remove_client(self, join_ID, client_name):
 
         if join_ID in self.clients:
-            if self.clients[join_ID] == client_name:
+            if self.clients[join_ID][0] == client_name:
                 del self.clients[join_ID]
 
+    def get_client_sockets(self):
+        """" returns list of sockets for current chat room clients """
+
+        return [val[1] for val in list(self.client_sockets.values())]
+
+    def publish_to_clients(self, message):
+        """ push a message to currently connected clients of the chat room"""
+
+        socket_list = self.get_client_sockets()
+
+        for isocket in socket_list:
+            try:
+                isocket.send(message)
+            except:
+                # if isocket in self.sockets:
+                #     self.sockets.remove(isocket)
+                isocket.close()
 
 
 class ChatServer:
@@ -57,15 +83,14 @@ class ChatServer:
         self.chat_room_ID = 0
         self.join_ID = 0
 
-
-
-
         self.bind_socket(n_connections)
 
         # add open socket to socket list
         self.sockets.append(self.server_socket)
 
         self.socket_list = {}
+
+        self.connections = []
 
         print(self.server_socket)
         print("Chat server started on port " + str(self.port))
@@ -117,10 +142,11 @@ class ChatServer:
 
                         # handle helo
                         elif input.startswith('HELO '):
+                            print("HELO server...")
                             socket.send("{0}\nIP:{1}\nPort:{2}\nStudentID:{3}\n".format(input, str(self.socket_list[socket][0]), str(self.socket_list[socket][1]), self.socket_list[socket][2]).encode())
 
                         # handle commands
-                        message_list = split_message(repr(data))
+                        message_list = split_message(input)
                         n_actions = len(message_list)
                         first_action = message_list[0][0]
 
@@ -128,26 +154,28 @@ class ChatServer:
                         # command: join chatroom
                         if first_action == 'JOIN_CHATROOM':
                             print('Join Chatroom request')
-                            reply = self.join_chatroom(message_list)
+                            reply = self.join_chatroom(message_list, socket)
                         elif first_action == 'LEAVE_CHATROOM':
                             print('Leave Chatroom request')
                             reply = self.leave_chatroom(message_list)
 
                         if reply:
-                            self.publish_to_all(socket, reply)
+                            self.publish_to_all(socket, reply.encode())
 
                         self.publish_to_all(socket, "\r" + '[' + str(socket.getpeername()) + '] ' + data.decode())
 
                     else:  # data is None
                         # remove the socket that's broken
+                        print("no data from socket")
                         if socket in self.sockets:
+                            print("removing socket from list")
                             self.sockets.remove(socket)
 
                         # self.publish_to_all(socket, "Client (%s, %s) is offline\n" % addr)
 
         conn_socket.close()
 
-    def join_chatroom(self, message_list):
+    def join_chatroom(self, message_list, socket):
 
         # RECEIVED MESSAGE:
         # JOIN_CHATROOM: [chatroom name]
@@ -175,12 +203,12 @@ class ChatServer:
 
         if chatroom_name in self.chat_rooms:
             self.join_ID += 1
-            self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name)
+            self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
         else:
             self.join_ID += 1
             self.chat_room_ID =+ 1
             self.chat_rooms[chatroom_name] = ChatRoom(chatroom_name, self.chat_room_ID)
-            self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name)
+            self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
 
 
         return 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\ROOM_REF: {3}\nJOIN_ID: {4}'.format(chatroom_name ,self.host, self.port, self.chat_room_ID, self.join_ID)
@@ -210,6 +238,7 @@ class ChatServer:
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
                 chat_room.remove_client(join_id, client_name)
+                chat_room.publish_to_clients("Client: {0} has left the chatroom {")
                 left_chatroom_id = chat_room.room_ID
 
         return 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}'.format(left_chatroom_id, join_id)
@@ -229,16 +258,21 @@ class ChatServer:
         except socket.error:
             return
 
+        connection = Connection(conn_socket, addr)
+        self.connections.append(connection)
+
         self.sockets.append(conn_socket)
         print("new client from: {0}".format(addr))
+        # addr[0] = IP, addr[1] = Port
         self.socket_list[conn_socket] = (addr[0], addr[1], 'StudentId' + str(next(self.counter)))
-        self.publish_to_all(conn_socket, "[%s:%s] entered our chatting room\n" % addr)
-        print("[%s:%s] entered our chatting room\n" % addr)
+        # self.publish_to_all(conn_socket, "[%s:%s] entered our chatting room\n" % addr)
+        # print("[%s:%s] entered our chatting room\n" % addr)
 
     def publish_to_all(self, socket, message):
 
         for isocket in self.sockets:
 
+            # Do not send the message to master socket and the client who has send us the message
             if isocket != self.server_socket and isocket != socket:
             # if isocket != self.server_socket:
                 try:
@@ -261,8 +295,6 @@ def split_message(message):
     print([s.split(': ') for s in s_lines])
 
     return command_list
-
-
 
 
 if __name__ == '__main__':
