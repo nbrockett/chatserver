@@ -4,7 +4,10 @@ import socket
 import select
 import sys
 import argparse
+import threading
 from itertools import count
+import subprocess
+import time
 
 #HOST = "localhost"
 #PORT = 8000
@@ -53,20 +56,27 @@ class ChatRoom:
     def publish_to_clients(self, message):
         """ push a message to currently connected clients of the chat room"""
 
-        socket_list = self.get_client_sockets()
+        # Return:
+        # CHAT: [ROOM_REF]
+        # CLIENT_NAME: [string identifying client user]
+        # MESSAGE: [string terminated with '\n\n']
 
-        for isocket in socket_list:
+        # socket_list = self.get_client_sockets()
+
+        for client_name, isocket in self.clients.values():
             try:
-                isocket.send(message)
+                msg = "CHAT: {0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, client_name, message)
+                isocket.send(msg)
             except:
                 # if isocket in self.sockets:
                 #     self.sockets.remove(isocket)
                 isocket.close()
 
-
-class ChatServer:
+class ChatServer(threading.Thread):
 
     def __init__(self, port, host='localhost', n_connections=MAX_CONNECTIONS):
+
+        threading.Thread.__init__(self)
 
         # Server parameters
         self.port = port
@@ -108,7 +118,6 @@ class ChatServer:
             print('Failed to bind socket to server'.format(socket.error))
             sys.exit()
 
-
     def run(self):
 
         print('Waiting for connections on port'.format(self.port))
@@ -119,61 +128,117 @@ class ChatServer:
             # all sockets in writable have free space in the buffer to be written to
             readable_sockets, writable_sockets, exceptional_sockets = select.select(self.sockets, [], [], 0)
 
-            for socket in readable_sockets:
+            # new connection
+            try:
+                conn_socket, addr = self.server_socket.accept()
+            except conn_socket.error:
+                return
 
-                if socket == self.server_socket:
-                    self.add_connection()
+            connection = Connection(conn_socket, addr)
+            self.connections.append(connection)
 
-                else:  # message from client
+            self.sockets.append(conn_socket)
+            print("new client from: {0}".format(addr))
+            # addr[0] = IP, addr[1] = Port
+            self.socket_list[conn_socket] = (addr[0], addr[1], 'StudentId' + str(next(self.counter)))
 
-                    data = socket.recv(RECV_BUFFER)
-                    print("Received ", repr(data.decode()))
-                    print("Received ", self.socket_list[socket][0])
+            # for socket in readable_sockets:
+            conn_socket.settimeout(60)
 
-                    if data:
+            threading.Thread(target=self.run_thread, args=(conn_socket, addr)).start()
 
-                        input = data.decode()
-                        print("input = ", input)
+            # for socket in readable_sockets:
+            # threading.Thread(target=self.run_thread, args=(readable_sockets,)).start()
 
-                        # handle kill
-                        if input == 'KILL_SERVICE':
-                            print("stopping server...")
-                            self.stop()
 
-                        # handle helo
-                        elif input.startswith('HELO '):
-                            print("HELO server...")
-                            socket.send("{0}\nIP:{1}\nPort:{2}\nStudentID:{3}\n".format(input, str(self.socket_list[socket][0]), str(self.socket_list[socket][1]), self.socket_list[socket][2]).encode())
+    def run_thread(self, socket, addr):
 
-                        # handle commands
-                        message_list = split_message(input)
-                        n_actions = len(message_list)
-                        first_action = message_list[0][0]
+        # print('Waiting for connections on port'.format(self.port))
+        # while True:
+        #
+        #     # get list of sockets which are readable, writable or have an exceptional condition
+        #     # all sockets in readable have data buffered to be read out
+        #     # all sockets in writable have free space in the buffer to be written to
+        #     readable_sockets, writable_sockets, exceptional_sockets = select.select(self.sockets, [], [], 0)
+        #
+        #     for socket in readable_sockets:
 
-                        reply = None
-                        # command: join chatroom
-                        if first_action == 'JOIN_CHATROOM':
-                            print('Join Chatroom request')
-                            reply = self.join_chatroom(message_list, socket)
-                        elif first_action == 'LEAVE_CHATROOM':
-                            print('Leave Chatroom request')
-                            reply = self.leave_chatroom(message_list)
+        # for socket in readable_sockets:
+        # if socket == self.server_socket:
+        #     # self.add_connection()
+        #
+        #     # new connection
+        #     try:
+        #         conn_socket, addr = self.server_socket.accept()
+        #     except socket.error:
+        #         return
+        #
+        #     connection = Connection(conn_socket, addr)
+        #     self.connections.append(connection)
+        #
+        #     self.sockets.append(conn_socket)
+        #     print("new client from: {0}".format(addr))
+        #     # addr[0] = IP, addr[1] = Port
+        #     self.socket_list[conn_socket] = (addr[0], addr[1], 'StudentId' + str(next(self.counter)))
+        #     # self.publish_to_all(conn_socket, "[%s:%s] entered our chatting room\n" % addr)
+        #     # print("[%s:%s] entered our chatting room\n" % addr)
+        #
+        #
+        # else:  # message from client
+        time.sleep(0.1)
+        while True:
+            # subprocess.call(["sleep", "10"])
+            try:
+                data = socket.recv(RECV_BUFFER)
+                print("Received ", repr(data.decode()))
+                print("Received ", self.socket_list[socket][0])
 
-                        if reply:
-                            self.publish_to_all(socket, reply.encode())
+                if data:
 
-                        self.publish_to_all(socket, "\r" + '[' + str(socket.getpeername()) + '] ' + data.decode())
+                    input = data.decode()
+                    print("input = ", input)
 
-                    else:  # data is None
-                        # remove the socket that's broken
-                        print("no data from socket")
-                        if socket in self.sockets:
-                            print("removing socket from list")
-                            self.sockets.remove(socket)
+                    # handle kill
+                    if input == 'KILL_SERVICE':
+                        print("stopping server...")
+                        self.stop()
 
-                        # self.publish_to_all(socket, "Client (%s, %s) is offline\n" % addr)
+                    # handle helo
+                    elif input.startswith('HELO '):
+                        print("HELO server...")
+                        socket.send("{0}\nIP:{1}\nPort:{2}\nStudentID:{3}\n".format(input, str(self.socket_list[socket][0]), str(self.socket_list[socket][1]), self.socket_list[socket][2]).encode())
 
-        conn_socket.close()
+                    # handle commands
+                    message_list = split_message(input)
+                    n_actions = len(message_list)
+                    first_action = message_list[0][0]
+
+                    reply = None
+                    # command: join chatroom
+                    if first_action == 'JOIN_CHATROOM':
+                        print('Join Chatroom request')
+                        reply = self.join_chatroom(message_list, socket)
+                    elif first_action == 'LEAVE_CHATROOM':
+                        print('Leave Chatroom request')
+                        reply = self.leave_chatroom(message_list)
+
+                    if reply:
+                        self.publish_to_all(socket, reply.encode())
+
+                    self.publish_to_all(socket, "\r" + '[' + str(socket.getpeername()) + '] ' + data.decode())
+
+                else:  # data is None
+                    # remove the socket that's broken
+                    print("no data from socket")
+                    if socket in self.sockets:
+                        print("removing socket from list")
+                        self.sockets.remove(socket)
+                    raise Exception('Client disconnected')
+
+                # self.publish_to_all(socket, "Client (%s, %s) is offline\n" % addr)
+            except:
+                socket.close()
+                return
 
     def join_chatroom(self, message_list, socket):
 
@@ -238,7 +303,7 @@ class ChatServer:
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
                 chat_room.remove_client(join_id, client_name)
-                chat_room.publish_to_clients("Client: {0} has left the chatroom {")
+                chat_room.publish_to_clients("Client: {0} has left the chatroom".format(client_name))
                 left_chatroom_id = chat_room.room_ID
 
         return 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}'.format(left_chatroom_id, join_id)
