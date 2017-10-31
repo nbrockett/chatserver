@@ -16,6 +16,8 @@ MAX_CONNECTIONS = 10
 FLAGS = None
 
 
+
+
 class Connection:
     def __init__(self, socket, address):
         self.socket = socket
@@ -131,7 +133,8 @@ class ChatServer(threading.Thread):
             # new connection
             try:
                 conn_socket, addr = self.server_socket.accept()
-            except conn_socket.error:
+            except:
+                print("SOCKET ERROR!")
                 return
 
             connection = Connection(conn_socket, addr)
@@ -191,7 +194,7 @@ class ChatServer(threading.Thread):
             try:
                 data = socket.recv(RECV_BUFFER)
                 print("Received ", repr(data.decode()))
-                print("Received ", self.socket_list[socket][0])
+                print("Received from ", self.socket_list[socket][0])
 
                 if data:
 
@@ -220,8 +223,9 @@ class ChatServer(threading.Thread):
                         reply = self.join_chatroom(message_list, socket)
                     elif first_action == 'LEAVE_CHATROOM':
                         print('Leave Chatroom request')
-                        reply = self.leave_chatroom(message_list)
+                        reply = self.leave_chatroom(message_list, socket)
 
+                    # send replt to all sockets
                     if reply:
                         self.publish_to_all(None, reply.encode())
                         # self.publish_to_all(socket, reply.encode())
@@ -234,7 +238,10 @@ class ChatServer(threading.Thread):
                     if socket in self.sockets:
                         print("removing socket from list")
                         self.sockets.remove(socket)
-                    raise Exception('Client disconnected')
+                    error_msg = create_error_message(error_code=1)
+                    self.publish_to_all(socket, error_msg)
+                    raise Exception
+
 
                 # self.publish_to_all(socket, "Client (%s, %s) is offline\n" % addr)
             except:
@@ -272,15 +279,14 @@ class ChatServer(threading.Thread):
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
         else:
             self.join_ID += 1
-            self.chat_room_ID =+ 1
+            self.chat_room_ID += 1
             self.chat_rooms[chatroom_name] = ChatRoom(chatroom_name, self.chat_room_ID)
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
 
+        return 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
 
-        return 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\ROOM_REF: {3}\nJOIN_ID: {4}'.format(chatroom_name ,self.host, self.port, self.chat_room_ID, self.join_ID)
 
-
-    def leave_chatroom(self, message_list):
+    def leave_chatroom(self, message_list, socket):
 
         # RECEIVED MESSAGE:
         # LEAVE_CHATROOM: [ROOM_REF]
@@ -301,6 +307,13 @@ class ChatServer(threading.Thread):
         client_name = message_list[2][1]
 
         left_chatroom_id = None
+
+        # if chatroom ID doesn't exist send error message to socket
+        if chatroom_id not in self.chat_rooms.values():
+            error_msg = create_error_message(2, chatroom_id)
+            self.send_data_to(socket, error_msg)
+            return
+
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
                 chat_room.remove_client(join_id, client_name)
@@ -336,6 +349,8 @@ class ChatServer(threading.Thread):
 
     def publish_to_all(self, socket, message):
 
+        print("publishing message : ", message)
+
         for isocket in self.sockets:
 
             # Do not send the message to master socket and the client who has send us the message
@@ -358,10 +373,22 @@ class ChatServer(threading.Thread):
 def split_message(message):
     s_lines = message.split('\n')
     command_list = [s.split(': ') for s in s_lines]
-    print([s.split(': ') for s in s_lines])
+    if command_list[-1] == ['']:
+        del command_list[-1]
+    # print([s.split(': ') for s in s_lines])
+    print(command_list)
 
     return command_list
 
+def create_error_message(error_code, *args):
+
+    ERROR_MSG = "ERROR_CODE: {0}\n ERROR_DESCRIPTION: {1}\n"
+    if error_code == 1:
+        desc = "Error in socket connection"
+        return ERROR_MSG.format(error_code, desc)
+    elif error_code == 2:
+        desc = "ERROR: Chatroom ID {0} doesn't exist".format(args[0])
+        return ERROR_MSG.format(error_code, desc)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
