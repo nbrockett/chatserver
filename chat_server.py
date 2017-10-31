@@ -126,7 +126,7 @@ class ChatServer(threading.Thread):
             # get list of sockets which are readable, writable or have an exceptional condition
             # all sockets in readable have data buffered to be read out
             # all sockets in writable have free space in the buffer to be written to
-            readable_sockets, writable_sockets, exceptional_sockets = select.select(self.sockets, [], [], 0)
+            # readable_sockets, writable_sockets, exceptional_sockets = select.select(self.sockets, [], [], 0)
 
             # new connection
             try:
@@ -145,13 +145,13 @@ class ChatServer(threading.Thread):
             # for socket in readable_sockets:
             conn_socket.settimeout(60)
 
-            threading.Thread(target=self.run_thread, args=(conn_socket, addr)).start()
+            threading.Thread(target=self.listen_to_socket, args=(conn_socket, addr)).start()
 
             # for socket in readable_sockets:
             # threading.Thread(target=self.run_thread, args=(readable_sockets,)).start()
 
 
-    def run_thread(self, socket, addr):
+    def listen_to_socket(self, socket, addr):
 
         # print('Waiting for connections on port'.format(self.port))
         # while True:
@@ -223,9 +223,10 @@ class ChatServer(threading.Thread):
                         reply = self.leave_chatroom(message_list)
 
                     if reply:
-                        self.publish_to_all(socket, reply.encode())
+                        self.publish_to_all(None, reply.encode())
+                        # self.publish_to_all(socket, reply.encode())
 
-                    self.publish_to_all(socket, "\r" + '[' + str(socket.getpeername()) + '] ' + data.decode())
+                    # self.publish_to_all(socket, "\r" + '[' + str(socket.getpeername()) + '] ' + data.decode())
 
                 else:  # data is None
                     # remove the socket that's broken
@@ -316,22 +317,22 @@ class ChatServer(threading.Thread):
             socket.close()
             self.sockets.remove(socket)
 
-    def add_connection(self):
-        # new connection
-        try:
-            conn_socket, addr = self.server_socket.accept()
-        except socket.error:
-            return
-
-        connection = Connection(conn_socket, addr)
-        self.connections.append(connection)
-
-        self.sockets.append(conn_socket)
-        print("new client from: {0}".format(addr))
-        # addr[0] = IP, addr[1] = Port
-        self.socket_list[conn_socket] = (addr[0], addr[1], 'StudentId' + str(next(self.counter)))
-        # self.publish_to_all(conn_socket, "[%s:%s] entered our chatting room\n" % addr)
-        # print("[%s:%s] entered our chatting room\n" % addr)
+    # def add_connection(self):
+    #     # new connection
+    #     try:
+    #         conn_socket, addr = self.server_socket.accept()
+    #     except socket.error:
+    #         return
+    #
+    #     connection = Connection(conn_socket, addr)
+    #     self.connections.append(connection)
+    #
+    #     self.sockets.append(conn_socket)
+    #     print("new client from: {0}".format(addr))
+    #     # addr[0] = IP, addr[1] = Port
+    #     self.socket_list[conn_socket] = (addr[0], addr[1], 'StudentId' + str(next(self.counter)))
+    #     # self.publish_to_all(conn_socket, "[%s:%s] entered our chatting room\n" % addr)
+    #     # print("[%s:%s] entered our chatting room\n" % addr)
 
     def publish_to_all(self, socket, message):
 
