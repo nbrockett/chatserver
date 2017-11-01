@@ -50,6 +50,12 @@ class ChatRoom:
             if self.clients[join_ID][0] == client_name:
                 del self.clients[join_ID]
 
+    def remove_client_name(self, client_name):
+
+        for join_id, val_tuple in self.clients:
+            if val_tuple[0] == client_name:
+                del self.clients[join_id]
+
     def get_client_sockets(self):
         """" returns list of sockets for current chat room clients """
 
@@ -133,8 +139,9 @@ class ChatServer(threading.Thread):
             # new connection
             try:
                 conn_socket, addr = self.server_socket.accept()
-            except:
-                print("SOCKET ERROR!")
+            except socket.error as exc:
+                # print("SOCKET ERROR!")
+                print("Caught exception socket.error : %s" % exc)
                 return
 
             connection = Connection(conn_socket, addr)
@@ -224,6 +231,10 @@ class ChatServer(threading.Thread):
                     elif first_action == 'LEAVE_CHATROOM':
                         print('Leave Chatroom request')
                         reply = self.leave_chatroom(message_list, socket)
+                    elif first_action == 'DISCONNECT':
+                        print('Terminate request')
+                        self.terminate_connection(message_list, socket)
+
 
                     # send replt to all sockets
                     if reply:
@@ -247,6 +258,36 @@ class ChatServer(threading.Thread):
             except:
                 socket.close()
                 return
+
+    def terminate_connection(self, message_list, socket):
+
+        # RECEIVED MESSAGE:
+        # DISCONNECT: [IP address of client if UDP | 0 if TCP]
+		# PORT: [port number of client it UDP | 0 id TCP]
+		# CLIENT_NAME: [string handle to identify client user]
+
+        # RETURNS:
+        # closes the connection
+
+        assert (len(message_list) == 3)
+
+        assert (message_list[0][0] == 'DISCONNECT')
+        client_ip = message_list[0][1]
+        assert (message_list[1][0] == 'PORT')
+        client_port = message_list[1][1]
+        assert (message_list[2][0] == 'CLIENT_NAME')
+        client_name = message_list[2][1]
+
+        # remove socket from socket list
+        if socket in self.sockets:
+            print("removing socket from list")
+            self.sockets.remove(socket)
+
+        for chatroom_name in self.chat_rooms:
+            self.chat_rooms[chatroom_name].remove_client(client_name)
+
+        socket.close()
+
 
     def join_chatroom(self, message_list, socket):
 
@@ -348,8 +389,7 @@ class ChatServer(threading.Thread):
     #     # print("[%s:%s] entered our chatting room\n" % addr)
 
     def publish_to_all(self, socket, message):
-
-        print("publishing message : ", message)
+        """ publish to all sockets except for the given socket argument """
 
         for isocket in self.sockets:
 
@@ -359,9 +399,9 @@ class ChatServer(threading.Thread):
                 try:
                     isocket.send(message)
                 except:
-                    isocket.close()
                     if isocket in self.sockets:
                         self.sockets.remove(isocket)
+                    isocket.close()
 
 
     def stop(self):
