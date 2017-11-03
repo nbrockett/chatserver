@@ -9,8 +9,8 @@ from itertools import count
 import subprocess
 import time
 
-#HOST = "localhost"
-#PORT = 8000
+# HOST = "localhost"
+# PORT = 8000
 RECV_BUFFER = 4096
 MAX_CONNECTIONS = 10
 FLAGS = None
@@ -324,7 +324,7 @@ class ChatServer(threading.Thread):
             self.chat_rooms[chatroom_name] = ChatRoom(chatroom_name, self.chat_room_ID)
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
 
-        return 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
+        return 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
 
 
     def leave_chatroom(self, message_list, socket):
@@ -361,7 +361,7 @@ class ChatServer(threading.Thread):
                 chat_room.publish_to_clients("Client: {0} has left the chatroom".format(client_name))
                 left_chatroom_id = chat_room.room_ID
 
-        return 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}'.format(left_chatroom_id, join_id)
+        return 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}\n\n'.format(left_chatroom_id, join_id)
 
     def send_data_to(self, socket, message):
         try:
