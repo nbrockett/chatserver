@@ -260,7 +260,6 @@ class ChatServer(threading.Thread):
         client_name = message_list[2][1]
 
         left_chatroom_id = None
-        left_chatroom_name = ""
 
         print("current chatroom ID = ", chatroom_id)
         print("ALL IDs = ", [x.room_ID for x in self.chat_rooms.values()])
@@ -276,9 +275,8 @@ class ChatServer(threading.Thread):
 
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
-                left_chatroom_name = room_name
-                chat_room.remove_client(join_id, client_name)
-                chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name))
+                # chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name))
+                # chat_room.remove_client(join_id, client_name)
                 left_chatroom_id = chat_room.room_ID
 
         print("left chatroom id = ", left_chatroom_id)
@@ -286,7 +284,13 @@ class ChatServer(threading.Thread):
         reply = 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}\n'.format(left_chatroom_id, join_id)
         socket.send(reply.encode())
 
-        self.chat_rooms[left_chatroom_name].publish_to_clients(str(client_name) + " has left this chatroom.")
+        for room_name, chat_room in self.chat_rooms.items():
+            if chat_room.room_ID == chatroom_id:
+                chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name))
+                chat_room.remove_client(join_id, client_name)
+
+
+        # self.chat_rooms[left_chatroom_name].publish_to_clients(str(client_name) + " has left this chatroom.")
 
 
     def send_data_to(self, socket, message):
