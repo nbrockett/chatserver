@@ -242,7 +242,7 @@ class ChatServer(threading.Thread):
                         self.terminate_connection(message_list, socket)
 
 
-                    # send replt to all sockets
+                    # send reply to all sockets
                     if reply:
                         self.publish_to_all(None, reply.encode())
                         # self.publish_to_all(socket, reply.encode())
@@ -262,7 +262,7 @@ class ChatServer(threading.Thread):
 
                 # self.publish_to_all(socket, "Client (%s, %s) is offline\n" % addr)
             except:
-                socket.close()
+                os._exit(0)
                 return
 
     def terminate_connection(self, message_list, socket):
@@ -332,7 +332,7 @@ class ChatServer(threading.Thread):
 
         reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
         # self.publish_to_all(None, reply.encode())
-        socket.send(reply)
+        socket.send(reply.encode())
 
         self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined chatroom " + str(self.chat_rooms[chatroom_name].room_ID))
 
