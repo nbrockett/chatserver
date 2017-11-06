@@ -201,8 +201,48 @@ class ChatServer(threading.Thread):
             print('Terminate request')
             self.terminate_connection(message_list, socket)
             return
+        elif first_action == 'CHAT':
+            print('Chat request')
+            self.handle_chat(message_list, socket)
+            return
 
         print("MESSAGE COULD NOT BE PARSED")
+
+
+    def handle_chat(self, message_list, socket):
+
+        # RECEIVED MESSAGE
+        # CHAT: [ROOM_REF]
+        # JOIN_ID: [integer identifying client to server]
+        # CLIENT_NAME: [string identifying client user]
+        # MESSAGE: [string terminated
+        # with '\n\n']
+
+        # SEND TO CHATROOM
+        # CHAT: [ROOM_REF]
+        # CLIENT_NAME: [string identifying client user]
+        # MESSAGE: [string terminated
+        # with '\n\n']
+
+        print("Message List = ", message_list)
+        assert (len(message_list) == 4)
+
+        assert (message_list[0][0] == 'CHAT')
+        room_id = message_list[0][1]
+        assert (message_list[1][0] == 'JOIN_ID')
+        join_id = message_list[1][1]
+        assert (message_list[2][0] == 'CLIENT_NAME')
+        client_name = message_list[2][1]
+        assert (message_list[3][0] == 'MESSAGE')
+        message = message_list[3][1]
+
+        room_id = int(room_id)
+        join_id = int(join_id)
+
+        for chatroom in self.chat_rooms.values():
+            if chatroom.room_ID == room_id:
+                chatroom.publish_to_clients(message, client_name)
+
 
 
     def handle_join(self, message_list, socket):
