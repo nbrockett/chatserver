@@ -68,6 +68,7 @@ class ChatRoom:
 
         for client_name, isocket in self.clients.values():
             try:
+                print("publishing to {0}, with name {1}".format(client_name, joined_client_name))
                 msg = "CHAT: {0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, joined_client_name, message)
                 isocket.send(msg.encode())
             except Exception as e:
@@ -295,7 +296,6 @@ class ChatServer(threading.Thread):
 
 
         # self.chat_rooms[left_chatroom_name].publish_to_clients(str(client_name) + " has left this chatroom.")
-
 
     def send_data_to(self, socket, message):
         try:
