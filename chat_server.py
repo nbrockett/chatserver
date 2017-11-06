@@ -44,7 +44,7 @@ class ChatRoom:
         else:
             print("client ID {0} already joined".format(join_ID))
 
-        self.publish_to_clients(str(client_name) + " has joined chatroom " + str(self.room_ID))
+        # self.publish_to_clients(str(client_name) + " has joined chatroom " + str(self.room_ID))
 
     def remove_client(self, join_ID, client_name):
 
@@ -326,7 +326,12 @@ class ChatServer(threading.Thread):
             self.chat_rooms[chatroom_name] = ChatRoom(chatroom_name, self.chat_room_ID)
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
 
-        return 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
+        reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
+        self.publish_to_all(None, reply.encode())
+
+        self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined chatroom " + str(self.chat_rooms[chatroom_name].room_ID))
+
+        return None
 
 
     def leave_chatroom(self, message_list, socket):
