@@ -1,30 +1,22 @@
-# simplest chat server
+##
+##  A simple multi threaded chat server. Part of CS7NS1 course.
+##
+########################################################################################################################
 
 import socket
 import select
-import sys
 import argparse
 import threading
 from itertools import count
 import subprocess
 import time
 import os
+from collections import OrderedDict
 
-# HOST = "localhost"
-# PORT = 8000
 RECV_BUFFER = 4096
 MAX_CONNECTIONS = 10
 FLAGS = None
 
-
-
-
-class Connection:
-    def __init__(self, socket, address):
-        self.socket = socket
-        self.address = address
-        self.ip = address[0]
-        self.port = address[1]
 
 class ChatRoom:
 
@@ -53,18 +45,23 @@ class ChatRoom:
             if self.clients[join_ID][0] == client_name:
                 del self.clients[join_ID]
 
-    def remove_client_name(self, client_name):
+    def remove_client_by_name(self, client_name):
 
-        for join_id, val_tuple in self.clients:
+        for join_id, val_tuple in self.clients.items():
             if val_tuple[0] == client_name:
                 del self.clients[join_id]
+                return
+
+    def get_client_names(self):
+
+        return [val[0] for val in list(self.clients.values())]
 
     def get_client_sockets(self):
         """" returns list of sockets for current chat room clients """
 
         return [val[1] for val in list(self.client_sockets.values())]
 
-    def publish_to_clients(self, message):
+    def publish_to_clients(self, message, joined_client_name):
         """ push a message to currently connected clients of the chat room"""
 
         # Return:
@@ -76,226 +73,219 @@ class ChatRoom:
 
         for client_name, isocket in self.clients.values():
             try:
-                msg = "CHAT: {0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, client_name, message)
-                isocket.send(msg)
-            except:
-                # if isocket in self.sockets:
-                #     self.sockets.remove(isocket)
-                isocket.close()
+                print("publishing to {0}, with name {1} and room ref {2}".format(client_name, joined_client_name, self.room_ID))
+                msg = "CHAT: {0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, joined_client_name, message)
+                isocket.send(msg.encode())
+            except Exception as e:
+                print("Unknwon Exception in chatroom class  ", e)
+            #     # if isocket in self.sockets:
+            #     #     self.sockets.remove(isocket)
+            #     print("CLOSING SOCKET")
+            #     isocket.close()
 
 class ChatServer(threading.Thread):
+    """
+    Multi-Threaded Chat Server
+    """
 
-    def __init__(self, port, host='localhost', n_connections=MAX_CONNECTIONS):
+    def __init__(self, port=8000, host='localhost'):
 
         threading.Thread.__init__(self)
 
-        # Server parameters
-        self.port = port
         self.host = host
-        self.server_socket = None
-        self.running = True
+        self.port = port
 
-        #self.clients = {}
-        self.sockets = []
-        self.chat_rooms = {}
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.bind((host, port))
+
+        # {socket = (Ip, port, StudentID)}
+        self.socket_list = {}
 
         # counter for connections IDs
-        self.counter = count()
+        self.student_ID_counter = count()
         self.chat_room_ID = 0
         self.join_ID = 0
 
-        self.bind_socket(n_connections)
+        # {chatroom name : <ChatRoom Class>}
+        self.chat_rooms = OrderedDict()
 
-        # add open socket to socket list
-        self.sockets.append(self.server_socket)
-
-        self.socket_list = {}
-
-        self.connections = []
-
-        print(self.server_socket)
-        print("Chat server started on port " + str(self.port) + " with host ip " + str(self.host))
-
-
-    def bind_socket(self, n_connections):
-
-        try:
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.server_socket.bind((self.host, self.port))
-            self.server_socket.listen(n_connections)
-            # self.connections.append(self.server_socket)
-        except:
-            print('Failed to bind socket to server'.format(socket.error))
-            sys.exit()
+        print("Chat server started on port " + str(port))
 
     def run(self):
+        """ run server and listen to new connections. If found create client sockets"""
 
-        print('Waiting for connections on port'.format(self.port))
+        self.server.listen(MAX_CONNECTIONS)
+        inputs = [self.server]
+        self.client_threads = {}
+
+        print("running chat server")
+
         while True:
-
-            # get list of sockets which are readable, writable or have an exceptional condition
-            # all sockets in readable have data buffered to be read out
-            # all sockets in writable have free space in the buffer to be written to
-            # readable_sockets, writable_sockets, exceptional_sockets = select.select(self.sockets, [], [], 0)
-
-            # new connection
             try:
-                conn_socket, addr = self.server_socket.accept()
-            except socket.error as exc:
-                # print("SOCKET ERROR!")
-                print("Caught exception socket.error : %s" % exc)
-                return
+                inready, outready, excready = select.select(inputs, [], [])
+                for s in inready:
+                    if s == self.server:
+                        # setup new client connection
+                        conn_socket, address = self.server.accept()
 
-            connection = Connection(conn_socket, addr)
-            self.connections.append(connection)
+                        print("Connection == Server? ", conn_socket == s)
 
-            self.sockets.append(conn_socket)
-            print("new client from: {0}".format(addr))
-            # addr[0] = IP, addr[1] = Port
-            self.socket_list[conn_socket] = (addr[0], addr[1], 'StudentId' + str(next(self.counter)))
+                        print("new client from: {0}".format(address))
 
-            # for socket in readable_sockets:
-            conn_socket.settimeout(60)
+                        client_thread = threading.Thread(target=self.listen_to_socket, args=(conn_socket, address))
+                        client_thread.setDaemon(True)
+                        client_thread.start()
 
-            client_thread = threading.Thread(target=self.listen_to_socket, args=(conn_socket, addr))
-            client_thread.setDaemon(True)
-            client_thread.start()
+                        self.client_threads[conn_socket] = client_thread
+                        self.socket_list[conn_socket] = (address[0], address[1], 'StudentId' + str(next(self.student_ID_counter)))
+            except KeyboardInterrupt:
+                print("KeyboardInterrupt, shutting down server")
+                os._exit(0)
+            except Exception as e:
+                print("Exception {0}, shutting down server".format(e))
+                os._exit(0)
 
-
-            # for socket in readable_sockets:
-            # threading.Thread(target=self.run_thread, args=(readable_sockets,)).start()
-
+        self.stop()
 
     def listen_to_socket(self, socket, addr):
+        """ threaded function for socket listening """
 
-        # print('Waiting for connections on port'.format(self.port))
-        # while True:
-        #
-        #     # get list of sockets which are readable, writable or have an exceptional condition
-        #     # all sockets in readable have data buffered to be read out
-        #     # all sockets in writable have free space in the buffer to be written to
-        #     readable_sockets, writable_sockets, exceptional_sockets = select.select(self.sockets, [], [], 0)
-        #
-        #     for socket in readable_sockets:
-
-        # for socket in readable_sockets:
-        # if socket == self.server_socket:
-        #     # self.add_connection()
-        #
-        #     # new connection
-        #     try:
-        #         conn_socket, addr = self.server_socket.accept()
-        #     except socket.error:
-        #         return
-        #
-        #     connection = Connection(conn_socket, addr)
-        #     self.connections.append(connection)
-        #
-        #     self.sockets.append(conn_socket)
-        #     print("new client from: {0}".format(addr))
-        #     # addr[0] = IP, addr[1] = Port
-        #     self.socket_list[conn_socket] = (addr[0], addr[1], 'StudentId' + str(next(self.counter)))
-        #     # self.publish_to_all(conn_socket, "[%s:%s] entered our chatting room\n" % addr)
-        #     # print("[%s:%s] entered our chatting room\n" % addr)
-        #
-        #
-        # else:  # message from client
         time.sleep(0.1)
-        while True:
-            # subprocess.call(["sleep", "10"])
-            try:
+        running_thread = True
+        while running_thread:
+            # try:
+                print("Socket = ", socket)
                 data = socket.recv(RECV_BUFFER)
-                print("Received ", repr(data.decode()))
-                print("Received from ", self.socket_list[socket][0])
-
                 if data:
+                    # decode data stream
+                    data = data.decode()
 
-                    input = data.decode()
-                    print("input = ", input)
+                    running_thread = self.message_parser(data, socket)
+                    # if running_thread == False:
+                    #     self.client_threads[socket].exit()
 
-                    # handle kill
-                    if input == 'KILL_SERVICE':
-                        print("stopping server...")
-                        self.stop()
-
-                    # handle helo
-                    elif input.startswith('HELO '):
-                        print("HELO server...")
-                        socket.send("{0}\nIP:{1}\nPort:{2}\nStudentID:{3}\n".format(input, str(self.socket_list[socket][0]), str(self.socket_list[socket][1]), self.socket_list[socket][2]).encode())
-
-                    # handle commands
-                    message_list = split_message(input)
-                    n_actions = len(message_list)
-                    first_action = message_list[0][0]
-
-                    reply = None
-                    # command: join chatroom
-                    if first_action == 'JOIN_CHATROOM':
-                        print('Join Chatroom request')
-                        reply = self.join_chatroom(message_list, socket)
-                    elif first_action == 'LEAVE_CHATROOM':
-                        print('Leave Chatroom request')
-                        reply = self.leave_chatroom(message_list, socket)
-                    elif first_action == 'DISCONNECT':
-                        print('Terminate request')
-                        self.terminate_connection(message_list, socket)
+                else:
+                    print("Error: No data from {0}".format(addr))
+            # except Exception as e:
+            #     print("Unknown Exception {0} occurred".format(e))
 
 
-                    # send reply to all sockets
-                    if reply:
-                        self.publish_to_all(None, reply.encode())
-                        # self.publish_to_all(socket, reply.encode())
+    def message_parser(self, inputdata, socket):
 
-                    # self.publish_to_all(socket, "\r" + '[' + str(socket.getpeername()) + '] ' + data.decode())
+        print("---- Data Received -----")
+        print(inputdata)
+        print("------------------------")
 
-                else:  # data is None
-                    # remove the socket that's broken
-                    print("no data from socket")
-                    if socket in self.sockets:
-                        print("removing socket from list")
-                        self.sockets.remove(socket)
-                    error_msg = create_error_message(error_code=1)
-                    self.publish_to_all(socket, error_msg)
-                    raise Exception
+        # handle kill
+        if inputdata.startswith('KILL_SERVICE'):
+            print("Stopping server...")
+            self.stop()
+            return True
 
+        # handle helo
+        elif inputdata.startswith('HELO '):
+            # socket.send("HELLO BACK!!!! HIHIHIHII".encode())
+            message = "{0}\nIP:{1}\nPort:{2}\nStudentID:{3}\n".format(inputdata, str(self.socket_list[socket][0]), str(self.socket_list[socket][1]), self.socket_list[socket][2])
+            print("Reply: ", message)
+            socket.send(message.encode())
+            return True
 
-                # self.publish_to_all(socket, "Client (%s, %s) is offline\n" % addr)
-            except:
-                os._exit(0)
-                return
+        # handle commands
+        message_list = split_message(inputdata)
+        first_action = message_list[0][0]
 
-    def terminate_connection(self, message_list, socket):
+        reply = None
+        # command: join chatroom
+        if first_action == 'JOIN_CHATROOM':
+            print('Join Chatroom request')
+            self.handle_join(message_list, socket)
+            return True
+        elif first_action == 'LEAVE_CHATROOM':
+            print('Leave Chatroom request')
+            self.handle_leave(message_list, socket)
+            return True
+        elif first_action == 'CHAT':
+            print('Chat request')
+            self.handle_chat(message_list, socket)
+            return True
+        elif first_action == 'DISCONNECT':
+            print('Disconnect request')
+            do_disconnect = self.handle_disconnect(message_list, socket)
+            return do_disconnect
 
-        # RECEIVED MESSAGE:
+        print("MESSAGE COULD NOT BE PARSED")
+        return False
+
+    def handle_disconnect(self, message_list, socket):
+
+        # RECEIVED
         # DISCONNECT: [IP address of client if UDP | 0 if TCP]
-		# PORT: [port number of client it UDP | 0 id TCP]
-		# CLIENT_NAME: [string handle to identify client user]
+        # PORT: [port number of client it UDP | 0 id TCP]
+        # CLIENT_NAME: [string handle to identify client user]
 
-        # RETURNS:
-        # closes the connection
-
+        print("Message List = ", message_list)
         assert (len(message_list) == 3)
 
         assert (message_list[0][0] == 'DISCONNECT')
         client_ip = message_list[0][1]
         assert (message_list[1][0] == 'PORT')
-        client_port = message_list[1][1]
+        port = message_list[1][1]
         assert (message_list[2][0] == 'CLIENT_NAME')
         client_name = message_list[2][1]
 
-        # remove socket from socket list
-        if socket in self.sockets:
-            print("removing socket from list")
-            self.sockets.remove(socket)
+        # (client_ip, port, StudentID) = self.socket_list[socket]
 
-        for chatroom_name in self.chat_rooms:
-            self.chat_rooms[chatroom_name].remove_client(client_name)
+        # if client_ip == client_ip_ and port == port_:
+        del self.socket_list[socket]
 
-        socket.close()
+        for chat_room in self.chat_rooms.values():
+            iter_dic = list(chat_room.clients.values())
+            for cname, sock in iter_dic:
+                if client_name == cname and socket == sock:
+                    chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name), client_name)
+                    chat_room.remove_client_by_name(client_name)
+
+        # return False to stop thread
+        return False
 
 
-    def join_chatroom(self, message_list, socket):
+    def handle_chat(self, message_list, socket):
+
+        # RECEIVED MESSAGE
+        # CHAT: [ROOM_REF]
+        # JOIN_ID: [integer identifying client to server]
+        # CLIENT_NAME: [string identifying client user]
+        # MESSAGE: [string terminated
+        # with '\n\n']
+
+        # SEND TO CHATROOM
+        # CHAT: [ROOM_REF]
+        # CLIENT_NAME: [string identifying client user]
+        # MESSAGE: [string terminated
+        # with '\n\n']
+
+        print("Message List = ", message_list)
+        assert (len(message_list) == 4)
+
+        assert (message_list[0][0] == 'CHAT')
+        room_id = message_list[0][1]
+        assert (message_list[1][0] == 'JOIN_ID')
+        join_id = message_list[1][1]
+        assert (message_list[2][0] == 'CLIENT_NAME')
+        client_name = message_list[2][1]
+        assert (message_list[3][0] == 'MESSAGE')
+        message = message_list[3][1]
+
+        room_id = int(room_id)
+        join_id = int(join_id)
+
+        for chatroom in self.chat_rooms.values():
+            if chatroom.room_ID == room_id:
+                chatroom.publish_to_clients(message, client_name)
+
+
+
+    def handle_join(self, message_list, socket):
 
         # RECEIVED MESSAGE:
         # JOIN_CHATROOM: [chatroom name]
@@ -310,41 +300,41 @@ class ChatServer(threading.Thread):
         # ROOM_REF: [integer that uniquely identifies chat room on server]
         # JOIN_ID: [integer that uniquely identifies client joining]
 
-        assert(len(message_list) == 4)
+        print("Message List = ", message_list)
+        assert (len(message_list) == 4)
 
-        assert(message_list[0][0] == 'JOIN_CHATROOM')
+        assert (message_list[0][0] == 'JOIN_CHATROOM')
         chatroom_name = message_list[0][1]
-        assert(message_list[1][0] == 'CLIENT_IP')
+        assert (message_list[1][0] == 'CLIENT_IP')
         client_ip = message_list[1][1]
-        assert(message_list[2][0] == 'PORT')
+        assert (message_list[2][0] == 'PORT')
         client_port = message_list[2][1]
-        assert(message_list[3][0] == 'CLIENT_NAME')
+        assert (message_list[3][0] == 'CLIENT_NAME')
         client_name = message_list[3][1]
 
+
+        room_ref = None
         if chatroom_name in self.chat_rooms:
             self.join_ID += 1
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
+            room_ref = self.chat_rooms[chatroom_name].room_ID
         else:
             self.join_ID += 1
             self.chat_room_ID += 1
+            room_ref = self.chat_room_ID
             self.chat_rooms[chatroom_name] = ChatRoom(chatroom_name, self.chat_room_ID)
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
 
-        reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
-        # self.publish_to_all(None, reply.encode())
+        reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n'.format(chatroom_name, self.host, self.port, room_ref, self.join_ID)
         socket.send(reply.encode())
 
-        self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined chatroom " + str(self.chat_rooms[chatroom_name].room_ID))
+        self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined this chatroom.", client_name)
 
-        # reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
-        # return reply
 
-        return None
-
-    def leave_chatroom(self, message_list, socket):
+    def handle_leave(self, message_list, socket):
 
         # RECEIVED MESSAGE:
-        # LEAVE_CHATROOM: [ROOM_REF]
+        # LEAVE_CHATROOM: w[ROOM_REF]
         # JOIN_ID: [integer previously provided by server on join]
         # CLIENT_NAME: [string Handle to identifier client user]
 
@@ -363,75 +353,48 @@ class ChatServer(threading.Thread):
 
         left_chatroom_id = None
 
+        print("current chatroom ID = ", chatroom_id)
+        print("ALL IDs = ", [x.room_ID for x in self.chat_rooms.values()])
+
+        chatroom_id = int(chatroom_id)
+        join_id = int(join_id)
+
         # if chatroom ID doesn't exist send error message to socket
-        if chatroom_id not in self.chat_rooms.values():
+        if chatroom_id not in [x.room_ID for x in self.chat_rooms.values()]:
             error_msg = create_error_message(2, chatroom_id)
             self.send_data_to(socket, error_msg)
             return
 
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
-                chat_room.remove_client(join_id, client_name)
-                chat_room.publish_to_clients("Client: {0} has left the chatroom".format(client_name))
+                # chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name))
+                # chat_room.remove_client(join_id, client_name)
                 left_chatroom_id = chat_room.room_ID
 
-        return 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}\n\n'.format(left_chatroom_id, join_id)
+        print("left chatroom id = ", left_chatroom_id)
+        print("join_id= ", join_id)
+        reply = 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}\n'.format(left_chatroom_id, join_id)
+        socket.send(reply.encode())
+
+        for room_name, chat_room in self.chat_rooms.items():
+            if chat_room.room_ID == chatroom_id:
+                chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name), client_name)
+                # chat_room.remove_client(join_id, client_name)
+                chat_room.remove_client_by_name(client_name)
+
+
+        # self.chat_rooms[left_chatroom_name].publish_to_clients(str(client_name) + " has left this chatroom.")
 
     def send_data_to(self, socket, message):
         try:
-            socket.send(message)
+            socket.send(message.encode())
         except:
             # broken socket connection may be, chat client pressed ctrl+c for example
             socket.close()
             self.sockets.remove(socket)
 
-    # def add_connection(self):
-    #     # new connection
-    #     try:
-    #         conn_socket, addr = self.server_socket.accept()
-    #     except socket.error:
-    #         return
-    #
-    #     connection = Connection(conn_socket, addr)
-    #     self.connections.append(connection)
-    #
-    #     self.sockets.append(conn_socket)
-    #     print("new client from: {0}".format(addr))
-    #     # addr[0] = IP, addr[1] = Port
-    #     self.socket_list[conn_socket] = (addr[0], addr[1], 'StudentId' + str(next(self.counter)))
-    #     # self.publish_to_all(conn_socket, "[%s:%s] entered our chatting room\n" % addr)
-    #     # print("[%s:%s] entered our chatting room\n" % addr)
-
-    def publish_to_all(self, socket, message):
-        """ publish to all sockets except for the given socket argument """
-
-        for isocket in self.sockets:
-
-            # Do not send the message to master socket and the client who has send us the message
-            if isocket != self.server_socket and isocket != socket:
-            # if isocket != self.server_socket:
-                try:
-                    isocket.send(message)
-                except:
-                    if isocket in self.sockets:
-                        self.sockets.remove(isocket)
-                    isocket.close()
-
-
     def stop(self):
-        self.running = False
         os._exit(0)
-
-
-def split_message(message):
-    s_lines = message.split('\n')
-    command_list = [s.split(': ') for s in s_lines]
-    if command_list[-1] == ['']:
-        del command_list[-1]
-    # print([s.split(': ') for s in s_lines])
-    print(command_list)
-
-    return command_list
 
 def create_error_message(error_code, *args):
 
@@ -442,6 +405,14 @@ def create_error_message(error_code, *args):
     elif error_code == 2:
         desc = "ERROR: Chatroom ID {0} doesn't exist".format(args[0])
         return ERROR_MSG.format(error_code, desc)
+
+def split_message(message):
+    s_lines = message.split('\n')
+    command_list = [s.split(': ') for s in s_lines]
+    while command_list[-1] == ['']:
+        del command_list[-1]
+
+    return command_list
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -461,8 +432,4 @@ if __name__ == '__main__':
     FLAGS, unparsed = parser.parse_known_args()
 
     chat_server = ChatServer(FLAGS.port, FLAGS.host)
-    try:
-        chat_server.run()
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt, shutting down server!")
-        os._exit(0)
+    chat_server.run()
