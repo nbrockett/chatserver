@@ -56,7 +56,7 @@ class ChatRoom:
 
         return [val[1] for val in list(self.client_sockets.values())]
 
-    def publish_to_clients(self, message, client_name_):
+    def publish_to_clients(self, message, joined_client_name):
         """ push a message to currently connected clients of the chat room"""
 
         # Return:
@@ -68,7 +68,7 @@ class ChatRoom:
 
         for client_name, isocket in self.clients.values():
             try:
-                msg = "CHAT:{0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, client_name_, message)
+                msg = "CHAT: {0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, joined_client_name, message)
                 isocket.send(msg.encode())
             except Exception as e:
                 print("Unknwon Exception in chatroom class  ", e)
