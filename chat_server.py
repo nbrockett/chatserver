@@ -8,6 +8,7 @@ import threading
 from itertools import count
 import subprocess
 import time
+import os
 
 # HOST = "localhost"
 # PORT = 8000
@@ -113,7 +114,7 @@ class ChatServer(threading.Thread):
         self.connections = []
 
         print(self.server_socket)
-        print("Chat server started on port " + str(self.port) + "with host ip " + str(self.host))
+        print("Chat server started on port " + str(self.port) + " with host ip " + str(self.host))
 
 
     def bind_socket(self, n_connections):
@@ -157,7 +158,10 @@ class ChatServer(threading.Thread):
             # for socket in readable_sockets:
             conn_socket.settimeout(60)
 
-            threading.Thread(target=self.listen_to_socket, args=(conn_socket, addr)).start()
+            client_thread = threading.Thread(target=self.listen_to_socket, args=(conn_socket, addr))
+            client_thread.setDaemon(True)
+            client_thread.start()
+
 
             # for socket in readable_sockets:
             # threading.Thread(target=self.run_thread, args=(readable_sockets,)).start()
@@ -327,12 +331,15 @@ class ChatServer(threading.Thread):
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
 
         reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
-        self.publish_to_all(None, reply.encode())
+        # self.publish_to_all(None, reply.encode())
+        socket.send(reply)
 
         self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined chatroom " + str(self.chat_rooms[chatroom_name].room_ID))
 
-        return None
+        # reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
+        # return reply
 
+        return None
 
     def leave_chatroom(self, message_list, socket):
 
@@ -413,8 +420,7 @@ class ChatServer(threading.Thread):
 
     def stop(self):
         self.running = False
-        self.server_socket.close()
-        sys.exit(0)
+        os._exit(0)
 
 
 def split_message(message):
@@ -455,4 +461,8 @@ if __name__ == '__main__':
     FLAGS, unparsed = parser.parse_known_args()
 
     chat_server = ChatServer(FLAGS.port, FLAGS.host)
-    chat_server.run()
+    try:
+        chat_server.run()
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt, shutting down server!")
+        os._exit(0)
