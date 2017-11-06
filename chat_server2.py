@@ -233,7 +233,7 @@ class ChatServer(threading.Thread):
             self.chat_rooms[chatroom_name] = ChatRoom(chatroom_name, self.chat_room_ID)
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
 
-        reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
+        reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n'.format(chatroom_name, self.host, self.port, self.chat_room_ID, self.join_ID)
         socket.send(reply.encode())
 
         self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined this chatroom.")
