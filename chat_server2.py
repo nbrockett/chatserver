@@ -68,7 +68,7 @@ class ChatRoom:
 
         for client_name, isocket in self.clients.values():
             try:
-                msg = "CHAT: {0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, client_name, message)
+                msg = "CHAT:{0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, client_name, message)
                 isocket.send(msg.encode())
             except Exception as e:
                 print("Unknwon Exception in chatroom class  ", e)
@@ -242,7 +242,7 @@ class ChatServer(threading.Thread):
     def handle_leave(self, message_list, socket):
 
         # RECEIVED MESSAGE:
-        # LEAVE_CHATROOM: [ROOM_REF]
+        # LEAVE_CHATROOM: w[ROOM_REF]
         # JOIN_ID: [integer previously provided by server on join]
         # CLIENT_NAME: [string Handle to identifier client user]
 
