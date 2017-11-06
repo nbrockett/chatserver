@@ -47,9 +47,10 @@ class ChatRoom:
 
     def remove_client_by_name(self, client_name):
 
-        for join_id, val_tuple in self.clients:
+        for join_id, val_tuple in self.clients.items():
             if val_tuple[0] == client_name:
                 del self.clients[join_id]
+                return
 
     def get_client_sockets(self):
         """" returns list of sockets for current chat room clients """
