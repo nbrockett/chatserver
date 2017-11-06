@@ -283,7 +283,7 @@ class ChatServer(threading.Thread):
 
         print("left chatroom id = ", left_chatroom_id)
         print("join_id= ", join_id)
-        reply = 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}\n\n'.format(left_chatroom_id, join_id)
+        reply = 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}\n'.format(left_chatroom_id, join_id)
         socket.send(reply.encode())
 
         self.chat_rooms[left_chatroom_name].publish_to_clients(str(client_name) + " has left this chatroom.")
