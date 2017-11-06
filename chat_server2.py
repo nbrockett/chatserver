@@ -45,7 +45,7 @@ class ChatRoom:
             if self.clients[join_ID][0] == client_name:
                 del self.clients[join_ID]
 
-    def remove_client_name(self, client_name):
+    def remove_client_by_name(self, client_name):
 
         for join_id, val_tuple in self.clients:
             if val_tuple[0] == client_name:
@@ -292,7 +292,8 @@ class ChatServer(threading.Thread):
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
                 chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name), client_name)
-                chat_room.remove_client(join_id, client_name)
+                # chat_room.remove_client(join_id, client_name)
+                chat_room.remove_client_by_name(client_name)
 
 
         # self.chat_rooms[left_chatroom_name].publish_to_clients(str(client_name) + " has left this chatroom.")
