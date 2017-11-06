@@ -73,7 +73,7 @@ class ChatRoom:
 
         for client_name, isocket in self.clients.values():
             try:
-                print("publishing to {0}, with name {1}".format(client_name, joined_client_name))
+                print("publishing to {0}, with name {1} and room ref {2}".format(client_name, joined_client_name, self.room_ID))
                 msg = "CHAT: {0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, joined_client_name, message)
                 isocket.send(msg.encode())
             except Exception as e:
@@ -116,7 +116,7 @@ class ChatServer(threading.Thread):
 
         self.server.listen(MAX_CONNECTIONS)
         inputs = [self.server]
-        self.client_threads = []
+        self.client_threads = {}
 
         print("running chat server")
 
@@ -136,7 +136,7 @@ class ChatServer(threading.Thread):
                         client_thread.setDaemon(True)
                         client_thread.start()
 
-                        self.client_threads.append(client_thread)
+                        self.client_threads[conn_socket] = client_thread
                         self.socket_list[conn_socket] = (address[0], address[1], 'StudentId' + str(next(self.student_ID_counter)))
             except KeyboardInterrupt:
                 print("KeyboardInterrupt, shutting down server")
@@ -161,6 +161,8 @@ class ChatServer(threading.Thread):
                     data = data.decode()
 
                     running_thread = self.message_parser(data, socket)
+                    if running_thread == False:
+                        self.client_threads[socket].exit()
 
                 else:
                     print("Error: No data from {0}".format(addr))
