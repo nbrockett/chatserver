@@ -173,6 +173,7 @@ class ChatServer(threading.Thread):
         if inputdata.startswith('KILL_SERVICE'):
             print("Stopping server...")
             self.stop()
+            return
 
         # handle helo
         elif inputdata.startswith('HELO '):
@@ -180,7 +181,7 @@ class ChatServer(threading.Thread):
             message = "{0}\nIP:{1}\nPort:{2}\nStudentID:{3}\n".format(inputdata, str(self.socket_list[socket][0]), str(self.socket_list[socket][1]), self.socket_list[socket][2])
             print("Reply: ", message)
             socket.send(message.encode())
-
+            return
 
         # handle commands
         message_list = split_message(inputdata)
@@ -191,12 +192,17 @@ class ChatServer(threading.Thread):
         if first_action == 'JOIN_CHATROOM':
             print('Join Chatroom request')
             self.handle_join(message_list, socket)
+            return
         elif first_action == 'LEAVE_CHATROOM':
             print('Leave Chatroom request')
             self.handle_leave(message_list, socket)
+            return
         elif first_action == 'DISCONNECT':
             print('Terminate request')
             self.terminate_connection(message_list, socket)
+            return
+
+        print("MESSAGE COULD NOT BE PARSED")
 
 
     def handle_join(self, message_list, socket):
