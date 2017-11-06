@@ -11,7 +11,7 @@ from itertools import count
 import subprocess
 import time
 import os
-
+from collections import OrderedDict
 
 RECV_BUFFER = 4096
 MAX_CONNECTIONS = 10
@@ -107,7 +107,7 @@ class ChatServer(threading.Thread):
         self.join_ID = 0
 
         # {chatroom name : <ChatRoom Class>}
-        self.chat_rooms = {}
+        self.chat_rooms = OrderedDict()
 
         print("Chat server started on port " + str(port))
 
