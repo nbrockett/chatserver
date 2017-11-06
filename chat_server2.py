@@ -52,6 +52,10 @@ class ChatRoom:
                 del self.clients[join_id]
                 return
 
+    def get_client_names(self):
+
+        return [val[0] for val in list(self.clients.values())]
+
     def get_client_sockets(self):
         """" returns list of sockets for current chat room clients """
 
@@ -147,7 +151,8 @@ class ChatServer(threading.Thread):
         """ threaded function for socket listening """
 
         time.sleep(0.1)
-        while True:
+        running_thread = True
+        while running_thread:
             # try:
                 print("Socket = ", socket)
                 data = socket.recv(RECV_BUFFER)
@@ -155,7 +160,7 @@ class ChatServer(threading.Thread):
                     # decode data stream
                     data = data.decode()
 
-                    self.message_parser(data, socket)
+                    running_thread = self.message_parser(data, socket)
 
                 else:
                     print("Error: No data from {0}".format(addr))
@@ -173,7 +178,7 @@ class ChatServer(threading.Thread):
         if inputdata.startswith('KILL_SERVICE'):
             print("Stopping server...")
             self.stop()
-            return
+            return True
 
         # handle helo
         elif inputdata.startswith('HELO '):
@@ -181,7 +186,7 @@ class ChatServer(threading.Thread):
             message = "{0}\nIP:{1}\nPort:{2}\nStudentID:{3}\n".format(inputdata, str(self.socket_list[socket][0]), str(self.socket_list[socket][1]), self.socket_list[socket][2])
             print("Reply: ", message)
             socket.send(message.encode())
-            return
+            return True
 
         # handle commands
         message_list = split_message(inputdata)
@@ -192,21 +197,52 @@ class ChatServer(threading.Thread):
         if first_action == 'JOIN_CHATROOM':
             print('Join Chatroom request')
             self.handle_join(message_list, socket)
-            return
+            return True
         elif first_action == 'LEAVE_CHATROOM':
             print('Leave Chatroom request')
             self.handle_leave(message_list, socket)
-            return
-        elif first_action == 'DISCONNECT':
-            print('Terminate request')
-            self.terminate_connection(message_list, socket)
-            return
+            return True
         elif first_action == 'CHAT':
             print('Chat request')
             self.handle_chat(message_list, socket)
-            return
+            return True
+        elif first_action == 'DISCONNECT':
+            print('Disconnect request')
+            do_disconnect = self.handle_disconnect(message_list, socket)
+            return True
 
         print("MESSAGE COULD NOT BE PARSED")
+        return False
+
+    def handle_disconnect(self, message_list, socket):
+
+        # RECEIVED
+        # DISCONNECT: [IP address of client if UDP | 0 if TCP]
+        # PORT: [port number of client it UDP | 0 id TCP]
+        # CLIENT_NAME: [string handle to identify client user]
+
+        print("Message List = ", message_list)
+        assert (len(message_list) == 3)
+
+        assert (message_list[0][0] == 'DISCONNECT')
+        client_ip = message_list[0][1]
+        assert (message_list[1][0] == 'PORT')
+        port = message_list[1][1]
+        assert (message_list[2][0] == 'CLIENT_NAME')
+        client_name = message_list[2][1]
+
+        # (client_ip, port, StudentID) = self.socket_list[socket]
+
+        # if client_ip == client_ip_ and port == port_:
+        del self.socket_list[socket]
+
+        for chat_room in self.chat_rooms.values():
+            if client_name in chat_room.get_client_names():
+                chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name), client_name)
+                chat_room.remove_client_by_name(client_name)
+
+        # return False to stop thread
+        return False
 
 
     def handle_chat(self, message_list, socket):
