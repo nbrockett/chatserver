@@ -161,8 +161,8 @@ class ChatServer(threading.Thread):
                     data = data.decode()
 
                     running_thread = self.message_parser(data, socket)
-                    if running_thread == False:
-                        self.client_threads[socket].exit()
+                    # if running_thread == False:
+                    #     self.client_threads[socket].exit()
 
                 else:
                     print("Error: No data from {0}".format(addr))
@@ -211,7 +211,7 @@ class ChatServer(threading.Thread):
         elif first_action == 'DISCONNECT':
             print('Disconnect request')
             do_disconnect = self.handle_disconnect(message_list, socket)
-            return True
+            return do_disconnect
 
         print("MESSAGE COULD NOT BE PARSED")
         return False
@@ -239,9 +239,11 @@ class ChatServer(threading.Thread):
         del self.socket_list[socket]
 
         for chat_room in self.chat_rooms.values():
-            if client_name in chat_room.get_client_names():
-                chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name), client_name)
-                chat_room.remove_client_by_name(client_name)
+            iter_dic = list(chat_room.clients.values())
+            for cname, sock in iter_dic:
+                if client_name == cname and socket == sock:
+                    chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name), client_name)
+                    chat_room.remove_client_by_name(client_name)
 
         # return False to stop thread
         return False
