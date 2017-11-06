@@ -44,6 +44,8 @@ class ChatRoom:
         else:
             print("client ID {0} already joined".format(join_ID))
 
+        self.publish_to_clients(str(client_name) + " has joined chatroom " + str(self.room_ID))
+
     def remove_client(self, join_ID, client_name):
 
         if join_ID in self.clients:
@@ -111,7 +113,7 @@ class ChatServer(threading.Thread):
         self.connections = []
 
         print(self.server_socket)
-        print("Chat server started on port " + str(self.port))
+        print("Chat server started on port " + str(self.port) + "with host ip " + str(self.host))
 
 
     def bind_socket(self, n_connections):
