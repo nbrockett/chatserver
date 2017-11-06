@@ -56,7 +56,7 @@ class ChatRoom:
 
         return [val[1] for val in list(self.client_sockets.values())]
 
-    def publish_to_clients(self, message):
+    def publish_to_clients(self, message, client_name_):
         """ push a message to currently connected clients of the chat room"""
 
         # Return:
@@ -68,7 +68,7 @@ class ChatRoom:
 
         for client_name, isocket in self.clients.values():
             try:
-                msg = "CHAT:{0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, client_name, message)
+                msg = "CHAT:{0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, client_name_, message)
                 isocket.send(msg.encode())
             except Exception as e:
                 print("Unknwon Exception in chatroom class  ", e)
@@ -240,7 +240,7 @@ class ChatServer(threading.Thread):
         reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n'.format(chatroom_name, self.host, self.port, room_ref, self.join_ID)
         socket.send(reply.encode())
 
-        self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined this chatroom.")
+        self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined this chatroom.", client_name)
 
 
     def handle_leave(self, message_list, socket):
@@ -290,7 +290,7 @@ class ChatServer(threading.Thread):
 
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
-                chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name))
+                chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name), client_name)
                 chat_room.remove_client(join_id, client_name)
 
 
