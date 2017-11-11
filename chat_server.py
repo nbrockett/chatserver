@@ -69,19 +69,12 @@ class ChatRoom:
         # CLIENT_NAME: [string identifying client user]
         # MESSAGE: [string terminated with '\n\n']
 
-        # socket_list = self.get_client_sockets()
-
         for client_name, isocket in self.clients.values():
             try:
-                print("publishing to {0}, with name {1} and room ref {2}".format(client_name, joined_client_name, self.room_ID))
                 msg = "CHAT: {0}\nCLIENT_NAME: {1}\nMESSAGE: {2}\n\n".format(self.room_ID, joined_client_name, message)
                 isocket.send(msg.encode())
             except Exception as e:
                 print("Unknwon Exception in chatroom class  ", e)
-            #     # if isocket in self.sockets:
-            #     #     self.sockets.remove(isocket)
-            #     print("CLOSING SOCKET")
-            #     isocket.close()
 
 class ChatServer(threading.Thread):
     """
@@ -198,22 +191,40 @@ class ChatServer(threading.Thread):
         # command: join chatroom
         if first_action == 'JOIN_CHATROOM':
             print('Join Chatroom request')
-            self.handle_join(message_list, socket)
+            try:
+                self.handle_join(message_list, socket)
+            except Exception:
+                msg = create_error_message(3)
+                socket.send(msg.encode())
             return True
         elif first_action == 'LEAVE_CHATROOM':
             print('Leave Chatroom request')
-            self.handle_leave(message_list, socket)
+            try:
+                self.handle_leave(message_list, socket)
+            except Exception:
+                msg = create_error_message(4)
+                socket.send(msg.encode())
             return True
         elif first_action == 'CHAT':
             print('Chat request')
-            self.handle_chat(message_list, socket)
+            try:
+                self.handle_chat(message_list, socket)
+            except Exception:
+                msg = create_error_message(5)
+                socket.send(msg.encode())
             return True
         elif first_action == 'DISCONNECT':
             print('Disconnect request')
-            do_disconnect = self.handle_disconnect(message_list, socket)
+            try:
+                do_disconnect = self.handle_disconnect(message_list, socket)
+            except Exception:
+                msg = create_error_message(6)
+                socket.send(msg.encode())
             return do_disconnect
 
         print("MESSAGE COULD NOT BE PARSED")
+        msg = create_error_message(7)
+        socket.send(msg.encode())
         return False
 
     def handle_disconnect(self, message_list, socket):
@@ -277,7 +288,6 @@ class ChatServer(threading.Thread):
         message = message_list[3][1]
 
         room_id = int(room_id)
-        join_id = int(join_id)
 
         for chatroom in self.chat_rooms.values():
             if chatroom.room_ID == room_id:
@@ -352,10 +362,6 @@ class ChatServer(threading.Thread):
         client_name = message_list[2][1]
 
         left_chatroom_id = None
-
-        print("current chatroom ID = ", chatroom_id)
-        print("ALL IDs = ", [x.room_ID for x in self.chat_rooms.values()])
-
         chatroom_id = int(chatroom_id)
         join_id = int(join_id)
 
@@ -404,6 +410,21 @@ def create_error_message(error_code, *args):
         return ERROR_MSG.format(error_code, desc)
     elif error_code == 2:
         desc = "ERROR: Chatroom ID {0} doesn't exist".format(args[0])
+        return ERROR_MSG.format(error_code, desc)
+    elif error_code == 3:
+        desc = "ERROR: Couldn't handle join request"
+        return ERROR_MSG.format(error_code, desc)
+    elif error_code == 4:
+        desc = "ERROR: Couldn't handle leave request"
+        return ERROR_MSG.format(error_code, desc)
+    elif error_code == 5:
+        desc = "ERROR: Couldn't handle chat request"
+        return ERROR_MSG.format(error_code, desc)
+    elif error_code == 6:
+        desc = "ERROR: Couldn't handle disconnect request"
+        return ERROR_MSG.format(error_code, desc)
+    elif error_code == 7:
+        desc = "ERROR: Couldn't identify request"
         return ERROR_MSG.format(error_code, desc)
 
 def split_message(message):
