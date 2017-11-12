@@ -22,5 +22,8 @@ Collections
 How to start server:
 python chat_server.py --host=<HOST_IP> --port=<PORT>
 
+or 
+
+start.sh --host=<HOST_IP> --port=<PORT>
 
 
