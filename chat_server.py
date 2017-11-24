@@ -1,5 +1,5 @@
 ##
-##  A simple multi threaded chat server. Part of CS7NS1 course.
+##  A simple multi threaded chat server.
 ##
 ########################################################################################################################
 
@@ -121,10 +121,9 @@ class ChatServer(threading.Thread):
                         # setup new client connection
                         conn_socket, address = self.server.accept()
 
-                        print("Connection == Server? ", conn_socket == s)
-
                         print("new client from: {0}".format(address))
 
+                        # start new client using thread
                         client_thread = threading.Thread(target=self.listen_to_socket, args=(conn_socket, address))
                         client_thread.setDaemon(True)
                         client_thread.start()
@@ -145,22 +144,18 @@ class ChatServer(threading.Thread):
 
         time.sleep(0.1)
         running_thread = True
+        # run thread in a loop which checks for incoming data
         while running_thread:
-            # try:
-                print("Socket = ", socket)
-                data = socket.recv(RECV_BUFFER)
-                if data:
-                    # decode data stream
-                    data = data.decode()
+            data = socket.recv(RECV_BUFFER)
+            if data:
+                # decode data stream
+                data = data.decode()
 
-                    running_thread = self.message_parser(data, socket)
-                    # if running_thread == False:
-                    #     self.client_threads[socket].exit()
+                running_thread = self.message_parser(data, socket)
 
-                else:
-                    print("Error: No data from {0}".format(addr))
-            # except Exception as e:
-            #     print("Unknown Exception {0} occurred".format(e))
+            else:
+                print("Error: No data from {0}".format(addr))
+
 
 
     def message_parser(self, inputdata, socket):
@@ -188,7 +183,7 @@ class ChatServer(threading.Thread):
         first_action = message_list[0][0]
 
         reply = None
-        # command: join chatroom
+        # handle commands
         if first_action == 'JOIN_CHATROOM':
             print('Join Chatroom request')
             try:
@@ -222,6 +217,7 @@ class ChatServer(threading.Thread):
                 socket.send(msg.encode())
             return do_disconnect
 
+        # message is unknown
         print("MESSAGE COULD NOT BE PARSED")
         msg = create_error_message(7)
         socket.send(msg.encode())
@@ -244,11 +240,11 @@ class ChatServer(threading.Thread):
         assert (message_list[2][0] == 'CLIENT_NAME')
         client_name = message_list[2][1]
 
-        # (client_ip, port, StudentID) = self.socket_list[socket]
 
         # if client_ip == client_ip_ and port == port_:
         del self.socket_list[socket]
 
+        # remove client from chatroom
         for chat_room in self.chat_rooms.values():
             iter_dic = list(chat_room.clients.values())
             for cname, sock in iter_dic:
@@ -289,6 +285,7 @@ class ChatServer(threading.Thread):
 
         room_id = int(room_id)
 
+        # push message to chatrooms
         for chatroom in self.chat_rooms.values():
             if chatroom.room_ID == room_id:
                 chatroom.publish_to_clients(message, client_name)
@@ -324,11 +321,12 @@ class ChatServer(threading.Thread):
 
 
         room_ref = None
+        # join chatroom
         if chatroom_name in self.chat_rooms:
             self.join_ID += 1
             self.chat_rooms[chatroom_name].add_client(self.join_ID, client_name, socket)
             room_ref = self.chat_rooms[chatroom_name].room_ID
-        else:
+        else:  # create new chatroom and join
             self.join_ID += 1
             self.chat_room_ID += 1
             room_ref = self.chat_room_ID
@@ -338,6 +336,7 @@ class ChatServer(threading.Thread):
         reply = 'JOINED_CHATROOM: {0}\nSERVER_IP: {1}\nPORT: {2}\nROOM_REF: {3}\nJOIN_ID: {4}\n'.format(chatroom_name, self.host, self.port, room_ref, self.join_ID)
         socket.send(reply.encode())
 
+        # publish join message to chatrooms
         self.chat_rooms[chatroom_name].publish_to_clients(str(client_name) + " has joined this chatroom.", client_name)
 
 
@@ -371,25 +370,21 @@ class ChatServer(threading.Thread):
             self.send_data_to(socket, error_msg)
             return
 
+        # get the chatroom id
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
-                # chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name))
-                # chat_room.remove_client(join_id, client_name)
                 left_chatroom_id = chat_room.room_ID
 
-        print("left chatroom id = ", left_chatroom_id)
-        print("join_id= ", join_id)
+        # reply leaving msg
         reply = 'LEFT_CHATROOM: {0}\nJOIN_ID: {1}\n'.format(left_chatroom_id, join_id)
         socket.send(reply.encode())
 
+        # remove client from chatrooms
         for room_name, chat_room in self.chat_rooms.items():
             if chat_room.room_ID == chatroom_id:
                 chat_room.publish_to_clients("{0} has left this chatroom.".format(client_name), client_name)
-                # chat_room.remove_client(join_id, client_name)
                 chat_room.remove_client_by_name(client_name)
 
-
-        # self.chat_rooms[left_chatroom_name].publish_to_clients(str(client_name) + " has left this chatroom.")
 
     def send_data_to(self, socket, message):
         try:
@@ -403,6 +398,8 @@ class ChatServer(threading.Thread):
         os._exit(0)
 
 def create_error_message(error_code, *args):
+    """ Handling errors for different incoming messages """
+
 
     ERROR_MSG = "ERROR_CODE: {0}\n ERROR_DESCRIPTION: {1}\n"
     if error_code == 1:
@@ -428,6 +425,8 @@ def create_error_message(error_code, *args):
         return ERROR_MSG.format(error_code, desc)
 
 def split_message(message):
+    """ split message into list of strings """
+
     s_lines = message.split('\n')
     command_list = [s.split(': ') for s in s_lines]
     while command_list[-1] == ['']:
