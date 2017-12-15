@@ -1,6 +1,7 @@
 # chatserver
 
-A python chat server for the scalable computing module CS7NS1
+A python chat server for the scalable computing module CS7NS1.
+All test should pass using this implementation.
 
 #### <i class="icon-file"></i> Dependencies:
 
